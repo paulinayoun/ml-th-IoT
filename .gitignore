@@ -1,68 +1,44 @@
 # Python
-.venv/
-venv/
-env/
-ENV/
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+.venv/
+venv/
+ENV/
+env/
 
-# Jupyter Notebook
-.ipynb_checkpoints/
-
-# Data files
-*.csv
-*.xlsx
-*.xls
-*.parquet
-
-# ML Model files
-models/
+# Azure
+.env
 *.pkl
-*.h5
-*.pt
-*.pth
-*.onnx
+models/automl_*.pkl
 
-# Azure ML
-cont_forecast_mltable/
-cont_forecast_mltable_v2/
+# Data
+*.csv
+!requirements.txt
+data/
 cont_forecast_clean/
+cont_forecast_mltable*/
 
-# Visualizations (generated outputs)
+# Outputs
+models/
 visualizations/
-*.png
-*.jpg
-*.jpeg
-*.svg
-!docs/*.png
-!docs/*.jpg
+outputs/
+*.log
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-
-# OS
 .DS_Store
-Thumbs.db
-desktop.ini
 
-# Logs
-*.log
-logs/
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
 
-# Environment variables (if you create local config)
-.env
-.env.local
-azure_config_local.py
-
-# Distribution / packaging
-build/
-dist/
-*.egg-info/
-.eggs/
+# Streamlit
+.streamlit/
+mlflow.db
+*.db

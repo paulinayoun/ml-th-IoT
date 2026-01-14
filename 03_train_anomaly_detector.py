@@ -18,8 +18,8 @@ def train_anomaly_detector():
     print("="*60)
     
     # 1. 데이터 로드
-    cont_df = pd.read_csv('./cont_processed.csv')
-    rack_df = pd.read_csv('./rack_processed.csv')
+    cont_df = pd.read_csv('./data/cont_processed.csv')
+    rack_df = pd.read_csv('./data/rack_processed.csv')
     
     print(f"\n데이터 로드:")
     print(f"  컨테인먼트: {len(cont_df):,} 행")

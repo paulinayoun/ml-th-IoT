@@ -8,7 +8,7 @@ print("강력한 중복 제거 및 재집계")
 print("="*60)
 
 # 1. 데이터 로드
-cont_df = pd.read_csv('./cont_processed.csv')
+cont_df = pd.read_csv('./data/cont_processed.csv')
 cont_df['colDate'] = pd.to_datetime(cont_df['colDate'])
 
 print(f"\n원본 데이터: {len(cont_df):,} 행")
@@ -39,13 +39,79 @@ print(f"✅ 재집계 후: {len(df_agg):,} 행")
 # 4. 정렬
 df_agg = df_agg.sort_values(['contID', 'colDate']).reset_index(drop=True)
 
-# 5. 30분 후 타겟 생성
+# 5. 15분 간격으로 리샘플링 (Azure AutoML 최소 간격)
+print("\n15분 간격으로 리샘플링 중...")
+print(f"  리샘플링 전: {len(df_agg):,} 행 (10분 간격)")
+
+# 각 존별로 15분 간격 리샘플링
+resampled_dfs = []
+for cid in sorted(df_agg['contID'].unique()):
+    zone_data = df_agg[df_agg['contID'] == cid].copy()
+    zone_data = zone_data.set_index('colDate')
+
+    # 15분 간격으로 리샘플링 (평균)
+    zone_resampled = zone_data.resample('15min').mean()
+    zone_resampled['contID'] = cid
+    zone_resampled.reset_index(inplace=True)
+
+    # hour, day_of_week 재계산 (정수형이므로 평균이 이상해짐)
+    zone_resampled['hour'] = zone_resampled['colDate'].dt.hour
+    zone_resampled['day_of_week'] = zone_resampled['colDate'].dt.dayofweek
+    # rack_count는 NaN을 제거하고 정수로 변환 (forward fill -> backward fill)
+    zone_resampled['rack_count'] = zone_resampled['rack_count'].ffill().bfill().round().astype(int)
+
+    resampled_dfs.append(zone_resampled)
+
+df_agg = pd.concat(resampled_dfs, ignore_index=True)
+df_agg = df_agg.sort_values(['contID', 'colDate']).reset_index(drop=True)
+print(f"✅ 리샘플링 후: {len(df_agg):,} 행 (15분 간격)")
+
+# 5.5. 빠진 시간대 채우기 (Azure AutoML 요구사항)
+print("\n빠진 시간대 채우기 중...")
+print(f"  채우기 전: {len(df_agg):,} 행")
+
+# 전체 시간 범위 확인
+min_time = df_agg['colDate'].min()
+max_time = df_agg['colDate'].max()
+
+# 각 존별로 완전한 시계열 생성
+filled_dfs = []
+for cid in sorted(df_agg['contID'].unique()):
+    zone_data = df_agg[df_agg['contID'] == cid].copy()
+
+    # 15분 간격의 완전한 시간 범위 생성
+    complete_times = pd.DataFrame({
+        'colDate': pd.date_range(start=min_time, end=max_time, freq='15min'),
+        'contID': cid
+    })
+
+    # 기존 데이터와 병합 (빠진 시간대는 NaN으로 채워짐)
+    zone_filled = complete_times.merge(zone_data, on=['contID', 'colDate'], how='left')
+
+    # 정수형 컬럼은 forward fill
+    zone_filled['hour'] = zone_filled['colDate'].dt.hour
+    zone_filled['day_of_week'] = zone_filled['colDate'].dt.dayofweek
+    zone_filled['rack_count'] = zone_filled['rack_count'].ffill().bfill().astype(int)
+
+    # 센서 값은 forward fill (최근 값 사용)
+    sensor_cols = ['tempHot', 'tempCold', 'humiHot', 'humiCold', 'temp_diff', 'humi_diff']
+    for col in sensor_cols:
+        zone_filled[col] = zone_filled[col].ffill()
+
+    filled_dfs.append(zone_filled)
+
+df_agg = pd.concat(filled_dfs, ignore_index=True)
+df_agg = df_agg.sort_values(['contID', 'colDate']).reset_index(drop=True)
+print(f"✅ 채우기 후: {len(df_agg):,} 행 (연속적인 15분 간격)")
+
+# 6. 30분 후 타겟 생성
 print("\n타겟 생성 중...")
-df_agg['target_tempHot_30min'] = df_agg.groupby('contID')['tempHot'].shift(-3)
+# 15분 간격이므로 2칸 이동 = 30분 후
+df_agg['target_tempHot_30min'] = df_agg.groupby('contID')['tempHot'].shift(-2)
 df_agg = df_agg.dropna(subset=['target_tempHot_30min'])
 print(f"✅ 타겟 생성 후: {len(df_agg):,} 행")
 
-# 6. 최종 중복 확인
+# 7. 최종 중복 확인
 final_dup = df_agg.groupby(['contID', 'colDate']).size()
 final_dup_count = (final_dup > 1).sum()
 
@@ -57,7 +123,7 @@ if final_dup_count > 0:
 else:
     print("\n✅ 중복 0개 확인!")
 
-# 7. 컬럼 순서 정리
+# 8. 컬럼 순서 정리
 final_cols = [
     'contID', 'colDate', 'tempHot', 'tempCold', 'humiHot', 'humiCold',
     'temp_diff', 'humi_diff', 'hour', 'day_of_week', 'rack_count',
@@ -66,12 +132,12 @@ final_cols = [
 
 df_final = df_agg[final_cols].copy()
 
-# 8. 인덱스 리셋 (깔끔하게)
+# 9. 인덱스 리셋 (깔끔하게)
 df_final = df_final.reset_index(drop=True)
 
 print(f"\n최종 데이터: {len(df_final):,} 행 × {len(final_cols)} 컬럼")
 
-# 9. MLTable 폴더 생성
+# 10. MLTable 폴더 생성
 print("\nMLTable 폴더 생성...")
 os.makedirs('cont_forecast_clean', exist_ok=True)
 
@@ -81,7 +147,7 @@ df_final.to_csv('cont_forecast_clean/data.csv', index=False)
 # MLTable 파일
 mltable = {
     'type': 'mltable',
-    'paths': [{'file': './data.csv'}],
+    'paths': [{'file': 'data.csv'}],
     'transformations': [
         {
             'read_delimited': {
@@ -99,7 +165,7 @@ with open('cont_forecast_clean/MLTable', 'w') as f:
 
 print("✅ MLTable 폴더: cont_forecast_clean/")
 
-# 10. 철저한 검증
+# 11. 철저한 검증
 print("\n" + "="*60)
 print("데이터 검증")
 print("="*60)
