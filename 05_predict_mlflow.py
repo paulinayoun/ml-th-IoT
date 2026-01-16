@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MLflow를 사용한 Azure AutoML 모델 예측
 """
@@ -13,17 +14,17 @@ def load_model():
     print(f"MLflow 모델 로딩 중: {MODEL_DIR}")
     try:
         model = mlflow.pyfunc.load_model(MODEL_DIR)
-        print("✅ 모델 로딩 성공")
+        print("[OK] 모델 로딩 성공")
         return model
     except Exception as e:
-        print(f"❌ 모델 로딩 실패: {e}")
+        print(f"[ERROR] 모델 로딩 실패: {e}")
         import traceback
         traceback.print_exc()
         return None
 
-def prepare_data(zone_id='zone_1'):
+def prepare_data(zone_id=1):
     """예측용 데이터 준비"""
-    print(f"\n'{zone_id}' 데이터 준비 중...")
+    print(f"\n'contID={zone_id}' 데이터 준비 중...")
 
     # 전체 데이터 로드
     df = pd.read_csv(DATA_PATH, parse_dates=['colDate'])
@@ -35,7 +36,7 @@ def prepare_data(zone_id='zone_1'):
     if 'target_tempHot_30min' in zone_df.columns:
         zone_df = zone_df.drop(columns=['target_tempHot_30min'])
 
-    print(f"✅ 데이터 준비 완료: {len(zone_df)}개 행")
+    print(f"[OK] 데이터 준비 완료: {len(zone_df)}개 행")
     print(f"   시작: {zone_df['colDate'].min()}")
     print(f"   종료: {zone_df['colDate'].max()}")
     print(f"   컬럼: {list(zone_df.columns)}")
@@ -50,7 +51,7 @@ def predict(model, data):
         # MLflow 모델로 예측
         predictions = model.predict(data)
 
-        print("✅ 예측 성공!")
+        print("[OK] 예측 성공!")
         print(f"\n예측 결과 타입: {type(predictions)}")
 
         if isinstance(predictions, pd.DataFrame):
@@ -60,8 +61,8 @@ def predict(model, data):
 
             # CSV로 저장
             output_file = "forecast_predictions.csv"
-            predictions.to_csv(output_file, index=False)
-            print(f"\n✅ 예측 결과 저장: {output_file}")
+            predictions.to_csv(output_file, index=False, encoding='utf-8-sig')
+            print(f"\n[OK] 예측 결과 저장: {output_file}")
         else:
             print("\n예측 결과:")
             print(predictions[:10] if len(predictions) > 10 else predictions)
@@ -69,13 +70,13 @@ def predict(model, data):
             # 배열인 경우 DataFrame으로 변환 후 저장
             result_df = pd.DataFrame({'prediction': predictions})
             output_file = "forecast_predictions.csv"
-            result_df.to_csv(output_file, index=False)
-            print(f"\n✅ 예측 결과 저장: {output_file}")
+            result_df.to_csv(output_file, index=False, encoding='utf-8-sig')
+            print(f"\n[OK] 예측 결과 저장: {output_file}")
 
         return predictions
 
     except Exception as e:
-        print(f"❌ 예측 실패: {e}")
+        print(f"[ERROR] 예측 실패: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -91,8 +92,9 @@ def main():
         return
 
     # 2. 데이터 준비
-    data = prepare_data(zone_id='zone_1')
-    if data is None:
+    data = prepare_data(zone_id=1)
+    if data is None or len(data) == 0:
+        print("[ERROR] 데이터가 비어있습니다.")
         return
 
     # 3. 예측 실행

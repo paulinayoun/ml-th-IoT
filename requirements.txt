@@ -1,5 +1,5 @@
 # ============================================================
-# Azure ML IoT 온습도 예측 및 이상 탐지 프로젝트
+# Azure ML IoT Project
 # ============================================================
 
 # Azure ML SDK
@@ -10,13 +10,13 @@ azure-identity>=1.14.0
 azureml-automl-runtime>=1.54.0
 
 # Data Processing
-pandas>=2.0.0
-numpy>=1.24.0
+pandas==1.5.3
+numpy<1.24.0
 pyyaml>=6.0
 
 # Machine Learning
 scikit-learn>=1.3.0
-joblib>=1.3.0
+joblib==1.2.0
 
 # Visualization
 matplotlib>=3.7.0
